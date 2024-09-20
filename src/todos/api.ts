@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { validation } from "@honojs/validator";
 
 let todoList = [
     { id: "1", title: "Learning Hono", completed: false },
@@ -9,21 +10,28 @@ let todoList = [
 const todos = new Hono();
 todos.get("/", (c) => c.json(todoList));
 
-todos.post("/", async (c) => {
-    try {
-        const param = await c.req.json<{ title: string }>();
-        const newTodo = {
-            id: String(todoList.length + 1),
-            completed: false,
-            title: param.title,
-        };
-        todoList = [...todoList, newTodo];
-        return c.json(newTodo, 201);
-    } catch (error) {
-        console.error(error);
-        return c.text('Error processing request', 400);
-    }
-});
+todos.post(
+    "/",
+    validation((v, message) => ({
+        body: {
+            title: [v.trim, [v.required, message("Title is required")]],
+        },
+    })) as any,
+    async (c) => {
+        try {
+            const param = await c.req.json<{ title: string }>();
+            const newTodo = {
+                id: String(todoList.length + 1),
+                completed: false,
+                title: param.title,
+            };
+            todoList = [...todoList, newTodo];
+            return c.json(newTodo, 201);
+        } catch (error) {
+            console.error(error);
+            return c.text('Error processing request', 400);
+        }
+    });
 
 todos.put("/:id", async (c) => {
     const id = c.req.param("id");
