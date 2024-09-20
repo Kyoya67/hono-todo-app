@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { validation } from "@honojs/validator";
+import { z } from "zod";
+import { zValidator } from "@hono/zod-validator";
 
 let todoList = [
     { id: "1", title: "Learning Hono", completed: false },
@@ -8,66 +9,86 @@ let todoList = [
 ];
 
 const todos = new Hono();
+
+// GET all todos
 todos.get("/", (c) => c.json(todoList));
 
+// Define the schema for todo creation and update
+const todoSchema = z.object({
+    title: z.string().min(1).refine(value => value.trim().length > 0, {
+        message: "Title cannot be empty or contain only whitespace"
+    })
+});
+
+// POST new todo
 todos.post(
     "/",
-    validation((v, message) => ({
-        body: {
-            title: [v.trim, [v.required, message("Title is required")]],
-        },
-    })) as any,
+    zValidator("json", todoSchema),
     async (c) => {
         try {
-            const param = await c.req.json<{ title: string }>();
+            const { title } = c.req.valid('json');
             const newTodo = {
                 id: String(todoList.length + 1),
                 completed: false,
-                title: param.title,
+                title: title.trim(),
             };
             todoList = [...todoList, newTodo];
             return c.json(newTodo, 201);
         } catch (error) {
             console.error(error);
-            return c.text('Error processing request', 400);
+            if (error instanceof z.ZodError) {
+                return c.json({ error: error.errors }, 400);
+            }
+            return c.text('Error processing request', 500);
         }
-    });
-
-todos.put("/:id", async (c) => {
-    const id = c.req.param("id");
-    console.log("Updating todo with id:", id);  // デバッグログ
-
-    const todo = todoList.find((todo) => todo.id === id);
-    if (!todo) {
-        console.log("Todo not found");  // デバッグログ
-        return c.json({ message: "not found" }, 404);
     }
+);
 
-    const param = await c.req.json();  // parseBody()の代わりにjson()を使用
-    console.log("Received update data:", param);  // デバッグログ
+// PUT (update) todo
+todos.put(
+    "/:id",
+    zValidator("json", todoSchema),
+    async (c) => {
+        const id = c.req.param("id");
+        console.log("Updating todo with id:", id);
 
-    todoList = todoList.map((todo) => {
-        if (todo.id === id) {
-            console.log("Updating todo:", { ...todo, ...param });  // デバッグログ
-            return { ...todo, ...param };
-        } else {
-            return todo;
+        const todoIndex = todoList.findIndex((todo) => todo.id === id);
+        if (todoIndex === -1) {
+            console.log("Todo not found");
+            return c.json({ message: "not found" }, 404);
         }
-    });
 
-    console.log("Updated todoList:", todoList);  // デバッグログ
+        try {
+            const { title } = c.req.valid('json');
+            console.log("Received update data:", { title });
 
-    return c.json({ message: "Todo updated successfully" }, 200);  // 明示的な成功メッセージを返す
-});
+            todoList[todoIndex] = {
+                ...todoList[todoIndex],
+                title: title.trim()
+            };
 
+            console.log("Updated todo:", todoList[todoIndex]);
+            console.log("Updated todoList:", todoList);
+
+            return c.json({ message: "Todo updated successfully", todo: todoList[todoIndex] }, 200);
+        } catch (error) {
+            console.error(error);
+            if (error instanceof z.ZodError) {
+                return c.json({ error: error.errors }, 400);
+            }
+            return c.text('Error processing request', 500);
+        }
+    }
+);
+
+// DELETE todo
 todos.delete("/:id", async (c) => {
     const id = c.req.param("id");
-    const todo = todoList.find((todo) => todo.id === id);
-    if (!todo) {
+    const todoIndex = todoList.findIndex((todo) => todo.id === id);
+    if (todoIndex === -1) {
         return c.json({ message: "not found" }, 404);
     }
-    todoList = todoList.filter((todo) => todo.id !== id);
-
+    todoList.splice(todoIndex, 1);
     return new Response(null, { status: 204 });
 });
 
