@@ -8,8 +8,8 @@ const app = new Hono<{ Bindings: Bindings }>();  // Bindingsを型パラメー�
 app.use(
     "/api/*",
     basicAuth({
-        username: "tyoya",
-        password: "domodomo",
+        username: "kyoya",
+        password: "noplan",
     })
 );
 
