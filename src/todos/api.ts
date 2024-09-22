@@ -1,4 +1,4 @@
-import { Hono, type Env } from "hono";
+import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import {
@@ -12,13 +12,7 @@ import {
 } from "./model";
 import { Bindings } from "../bindings";
 
-const todos = new Hono<Bindings>();
-
-let todoList = [
-    { id: "1", title: "Learning Hono", completed: false },
-    { id: "2", title: "Watch the movie", completed: true },
-    { id: "3", title: "Buy milk", completed: false },
-];
+const todos = new Hono<{ Bindings: Bindings }>();
 
 // GET all todos
 todos.get("/", async (c) => {
