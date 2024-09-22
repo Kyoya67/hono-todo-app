@@ -1,17 +1,24 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import {
+    createTodo,
+    CreateTodo,
+    deleteTodo,
+    getTodo,
+    getTodos,
+    updateTodo,
+    UpdateTodo,
+} from "./model";
+import { Bindings } from "../bindings";
 
-let todoList = [
-    { id: "1", title: "Learning Hono", completed: false },
-    { id: "2", title: "Watch the movie", completed: true },
-    { id: "3", title: "Buy milk", completed: false },
-];
-
-const todos = new Hono();
+const todos = new Hono<{ Bindings: Bindings }>();
 
 // GET all todos
-todos.get("/", (c) => c.json(todoList));
+todos.get("/", async (c) => {
+    const todos = await getTodos(c.env.HONO_TODO);
+    return c.json(todos);
+});
 
 // Define the schema for todo creation and update
 const todoSchema = z.object({
@@ -25,70 +32,33 @@ todos.post(
     "/",
     zValidator("json", todoSchema),
     async (c) => {
-        try {
-            const { title } = c.req.valid('json');
-            const newTodo = {
-                id: String(todoList.length + 1),
-                completed: false,
-                title: title.trim(),
-            };
-            todoList = [...todoList, newTodo];
-            return c.json(newTodo, 201);
-        } catch (error) {
-            console.error(error);
-            if (error instanceof z.ZodError) {
-                return c.json({ error: error.errors }, 400);
-            }
-            return c.text('Error processing request', 500);
-        }
+        const param = await c.req.json<CreateTodo>();
+        const newTodo = await createTodo(c.env.HONO_TODO, param);
+
+        return c.json(newTodo, 201);
     }
 );
 
-// PUT (update) todo
-todos.put(
-    "/:id",
-    zValidator("json", todoSchema),
-    async (c) => {
-        const id = c.req.param("id");
-        console.log("Updating todo with id:", id);
-
-        const todoIndex = todoList.findIndex((todo) => todo.id === id);
-        if (todoIndex === -1) {
-            console.log("Todo not found");
-            return c.json({ message: "not found" }, 404);
-        }
-
-        try {
-            const { title } = c.req.valid('json');
-            console.log("Received update data:", { title });
-
-            todoList[todoIndex] = {
-                ...todoList[todoIndex],
-                title: title.trim()
-            };
-
-            console.log("Updated todo:", todoList[todoIndex]);
-            console.log("Updated todoList:", todoList);
-
-            return c.json({ message: "Todo updated successfully", todo: todoList[todoIndex] }, 200);
-        } catch (error) {
-            console.error(error);
-            if (error instanceof z.ZodError) {
-                return c.json({ error: error.errors }, 400);
-            }
-            return c.text('Error processing request', 500);
-        }
-    }
-);
-
-// DELETE todo
-todos.delete("/:id", async (c) => {
+todos.put("/:id", async (c) => {
     const id = c.req.param("id");
-    const todoIndex = todoList.findIndex((todo) => todo.id === id);
-    if (todoIndex === -1) {
+    const todo = await getTodo(c.env.HONO_TODO, id);
+    if (!todo) {
         return c.json({ message: "not found" }, 404);
     }
-    todoList.splice(todoIndex, 1);
+    const param = await c.req.json<UpdateTodo>();
+    await updateTodo(c.env.HONO_TODO, id, param);
+    return new Response(null, { status: 204 });
+});
+
+todos.delete("/:id", async (c) => {
+    const id = c.req.param("id");
+    const todo = await getTodo(c.env.HONO_TODO, id);
+    if (!todo) {
+        return c.json({ message: "not found" }, 404);
+    }
+
+    await deleteTodo(c.env.HONO_TODO, id);
+
     return new Response(null, { status: 204 });
 });
 

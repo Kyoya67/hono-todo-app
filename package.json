@@ -6,12 +6,16 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "test": "vitest",
+    "test": "jest --verbose --watch",
     "cf-typegen": "wrangler types"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.5.2",
     "@cloudflare/workers-types": "^4.20240909.0",
+    "@types/jest": "^29.5.13",
+    "esbuild-jest": "^0.5.0",
+    "jest": "^29.7.0",
+    "jest-environment-miniflare": "^2.14.3",
     "typescript": "^5.5.2",
     "vitest": "2.0.5",
     "wrangler": "^3.60.3"
